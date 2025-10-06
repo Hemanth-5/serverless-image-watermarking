@@ -1,0 +1,22 @@
+{
+  "name": "serverless-image-watermarking",
+  "version": "1.0.0",
+  "description": "Serverless image watermarking application using React, Netlify Functions, and Cloudinary",
+  "private": true,
+  "scripts": {
+    "install-frontend": "cd frontend && npm install",
+    "dev": "cd frontend && npm start",
+    "build": "cd frontend && npm run build",
+    "deploy": "netlify deploy --prod"
+  },
+  "keywords": [
+    "serverless",
+    "image-processing",
+    "watermarking",
+    "cloudinary",
+    "netlify-functions",
+    "react"
+  ],
+  "author": "",
+  "license": "MIT"
+}
