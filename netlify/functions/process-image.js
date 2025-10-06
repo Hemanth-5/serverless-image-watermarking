@@ -31,12 +31,24 @@ exports.handler = async (event, context) => {
     });
 
     let watermark = '';
+    let watermarkColor = '#ffffff';
+    let watermarkPosition = 'south_east';
+    let watermarkStyle = 'single';
+    let watermarkAngle = '0';
     let imageBuffer = null;
     let imageMimeType = '';
 
     busboy.on('field', (fieldname, value) => {
       if (fieldname === 'watermark') {
         watermark = value;
+      } else if (fieldname === 'watermarkColor') {
+        watermarkColor = value;
+      } else if (fieldname === 'watermarkPosition') {
+        watermarkPosition = value;
+      } else if (fieldname === 'watermarkStyle') {
+        watermarkStyle = value;
+      } else if (fieldname === 'watermarkAngle') {
+        watermarkAngle = value;
       }
     });
 
@@ -79,28 +91,73 @@ exports.handler = async (event, context) => {
         // Convert buffer to base64 and upload to Cloudinary
         const base64Image = `data:${imageMimeType};base64,${imageBuffer.toString('base64')}`;
         
+        // Upload the original first
         const uploadRes = await cloudinary.uploader.upload(base64Image, {
-          folder: 'watermarked_uploads',
+          folder: 'watermarked_images',
+          public_id: `watermarked_${Date.now()}`,
+        });
+        
+        // Build transformation based on watermark style
+        let transformation = [];
+        
+        // Format color properly (remove # and convert to rgb format)
+        const colorFormatted = watermarkColor.replace('#', 'rgb:');
+        
+        if (watermarkStyle === 'repeated') {
+          // Create tiled/repeated watermark effect using multiple overlays
+          // We'll create a grid pattern by positioning watermarks at different locations
+          const positions = [
+            { gravity: 'north_west', x: 50, y: 50 },
+            { gravity: 'north', x: 0, y: 50 },
+            { gravity: 'north_east', x: 50, y: 50 },
+            { gravity: 'west', x: 50, y: 0 },
+            { gravity: 'center', x: 0, y: 0 },
+            { gravity: 'east', x: 50, y: 0 },
+            { gravity: 'south_west', x: 50, y: 50 },
+            { gravity: 'south', x: 0, y: 50 },
+            { gravity: 'south_east', x: 50, y: 50 }
+          ];
+          
+          // Add watermark at each position
+          positions.forEach(pos => {
+            transformation.push({
+              overlay: {
+                font_family: 'Arial',
+                font_size: 35,
+                text: watermark
+              },
+              gravity: pos.gravity,
+              x: pos.x,
+              y: pos.y,
+              angle: parseInt(watermarkAngle) || 0,
+              color: colorFormatted,
+              opacity: 40
+            });
+          });
+        } else {
+          // Single watermark at specified position
+          transformation = [{
+            overlay: {
+              font_family: 'Arial',
+              font_size: 60,
+              text: watermark
+            },
+            gravity: watermarkPosition,
+            x: 20,
+            y: 20,
+            angle: parseInt(watermarkAngle) || 0,
+            color: colorFormatted,
+            opacity: 70
+          }];
+        }
+
+        // Apply transformation using explicit API
+        const transformedResult = await cloudinary.uploader.explicit(uploadRes.public_id, {
+          type: 'upload',
+          eager: [{ transformation: transformation }]
         });
 
-        // Generate watermarked image URL using text overlay
-        const url = cloudinary.url(uploadRes.public_id, {
-          transformation: [
-            { 
-              overlay: { 
-                font_family: 'Arial', 
-                font_size: 60, 
-                text: watermark 
-              }, 
-              gravity: 'south_east', 
-              x: 20, 
-              y: 20, 
-              color: '#ffffff',
-              opacity: 70
-            },
-          ],
-          secure: true,
-        });
+        const url = transformedResult.eager[0].secure_url;
 
         resolve({
           statusCode: 200,
